@@ -3,7 +3,7 @@
 		<div class="blocks">
 			<template v-for="block in blocks">
 				<div class="block" :key="block.id"
-				     :class="[block.status, !animating&&(answer[0]==block.x&&answer[1]==block.y)||(answer[2]==block.x&&answer[3]==block.y)?'answer':'']"
+				     :class="[block.status, !animating&&((answer[0]==block.x&&answer[1]==block.y)||(answer[2]==block.x&&answer[3]==block.y))?'answer':'']"
 				     :x="block.x" :y="block.y" :color="block.color"
 				     @touchstart="onTouchStart(block, ...arguments)"
 				     @touchmove="onTouchMove(block, ...arguments)">
@@ -183,7 +183,7 @@
         this.blocks.splice();
       },
       __crushBlock( block ) {
-        console.log( '__crushBlock', block.x, block.y, this.blocks.indexOf( block ) )
+        console.log( '__crushBlock', block.x, block.y )
         block.status = 'crushing';
         return new Promise( resolve => {
           setTimeout( resolve, 300 );
@@ -244,7 +244,7 @@
           __exchangeBlocks( x, y, x2, y2 );
           const result = this.__checkBlockCrush( this.cells[ x ][ y ] ) || this.__checkBlockCrush( this.cells[ x2 ][ y2 ] );
           __exchangeBlocks( x, y, x2, y2 );
-          console.log( x, y, x2, y2, result )
+          // console.log( x, y, x2, y2, result )
           return result;
         };
 
