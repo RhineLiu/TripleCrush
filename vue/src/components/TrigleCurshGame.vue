@@ -28,21 +28,27 @@
       };
     },
     mounted() {
-      let cells = [];
-      let blocks = [];
-      for ( let x = 0; x < W; ++x ) {
-        cells.push( [] );
-        for ( let y = 0; y < H; ++y ) {
-          const block = this.generateBlock( x, y );
-          cells[ x ].push( block );
-          blocks.push( block );
-        }
-      }
-      this.cells = cells;
-      this.blocks = blocks;
-      this.__checkCrush();
+      this.init();
     },
     methods: {
+      init() {
+        let cells = [];
+        let blocks = [];
+        for ( let x = 0; x < W; ++x ) {
+          cells.push( [] );
+          for ( let y = 0; y < H; ++y ) {
+            const block = this.generateBlock( x, y );
+            cells[ x ].push( block );
+            blocks.push( block );
+          }
+        }
+        this.cells = cells;
+        this.blocks = blocks;
+        this.__checkCrush();
+      },
+      playAgain() {
+        this.init();
+      },
       generateBlock( x, y ) {
         let block = {
           id: ++this.lastBlockId,
@@ -140,6 +146,9 @@
         } );
         if ( !blocks.length ) {
           this.answer = this.__findAnswer();
+          if ( !this.answer || !this.answer.length ) {
+            this.unsolvable();
+          }
           return false;
         }
         this.__crushBlocks( blocks );
@@ -179,9 +188,6 @@
         return new Promise( resolve => {
           setTimeout( resolve, 300 );
         } );
-      },
-      addScore( num ) {
-        this.$emit( 'addScore', num );
       },
       __fall( blocks ) {
         this.animating = true;
@@ -253,15 +259,28 @@
         }
 
         return [];
-      }
+      },
+      addScore( num ) {
+        this.$emit( 'addScore', num );
+      },
+      unsolvable() {
+        this.$emit( 'unsolvable' );
+      },
     },
   }
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped lang="scss">
+	$X: 7;
+	$Y: 7;
+	$W: 90px;
+	$H: 90px;
+	$gap: 10px;
+
 	.trigle-crush-game {
 		position: relative;
+		height: ($H + $gap) * $Y;
 
 		.blocks {
 			position: absolute;
@@ -269,12 +288,6 @@
 			top: 0;
 
 			.block {
-				$X: 7;
-				$Y: 7;
-				$W: 90px;
-				$H: 90px;
-				$gap: 10px;
-
 				position: absolute;
 				width: $W;
 				height: $H;
@@ -301,10 +314,10 @@
 					animation: block-answer 0.5s ease-in-out infinite alternate;
 					@keyframes block-answer {
 						0% {
-							transform: scale(0.9);
+							transform: scale(1);
 						}
 						100% {
-							transform: scale(1);
+							transform: scale(0.9);
 						}
 					}
 				}
