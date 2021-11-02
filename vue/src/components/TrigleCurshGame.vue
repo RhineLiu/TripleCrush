@@ -3,9 +3,11 @@
 		<div class="blocks">
 			<template v-for="block in blocks">
 				<div class="block" :key="block.id"
+				     :class="[block.status, !animating&&(answer[0]==block.x&&answer[1]==block.y)||(answer[2]==block.x&&answer[3]==block.y)?'answer':'']"
 				     :x="block.x" :y="block.y" :color="block.color"
 				     @touchstart="onTouchStart(block, ...arguments)"
-				     @touchmove="onTouchMove(block, ...arguments)"></div>
+				     @touchmove="onTouchMove(block, ...arguments)">
+				</div>
 			</template>
 		</div>
 	</div>
@@ -18,9 +20,11 @@
     props: {},
     data() {
       return {
+        animating: false,
         cells: [],
         blocks: [],
         lastBlockId: 0,
+        answer: [],
       };
     },
     mounted() {
@@ -49,6 +53,7 @@
         return block;
       },
       onTouchStart( block, e ) {
+        if ( this.animating ) return;
         const touch = e.touches[ 0 ];
         this._touchStartBlockId = block.id;
         this._touchStartBlockX = touch.clientX;
@@ -117,8 +122,8 @@
         block2.y = y;
         this.cells[ x ][ y ] = block2;
         this.cells[ x2 ][ y2 ] = block;
-        this.animating = true;
 
+        this.animating = true;
         return new Promise( resolve => {
           setTimeout( () => {
             this.animating = false;
@@ -133,11 +138,12 @@
             if ( this.__checkBlockCrush( block ) ) blocks.push( block );
           }
         } );
-        if ( blocks.length ) {
-          this.__crush( blocks );
-          return true;
+        if ( !blocks.length ) {
+          this.answer = this.__findAnswer();
+          return false;
         }
-        return false;
+        this.__crushBlocks( blocks );
+        return true;
       },
       __checkBlockCrush( block ) {
         const { x, y, color } = block;
@@ -149,16 +155,105 @@
         if ( y < H - 2 && this.cells[ x ][ y + 1 ].color === color && this.cells[ x ][ y + 2 ].color === color ) return true;
         return false;
       },
-      __crush( blocks ) {
-        blocks.forEach( block => {
-          this.cells[ block.x ][ block.y ] = {};
-          this.blocks.splice( this.blocks.indexOf( block ), 1 );
+      __crushBlocks( blocks ) {
+        this.animating = true;
+        Promise.all(
+          blocks.map( block => {
+            return this.__crushBlock( block ).then( () => {
+              this.cells[ block.x ][ block.y ] = {};
+              this.blocks.splice( this.blocks.indexOf( block ), 1 );
+            } );
+          } )
+        ).then( () => {
+          this.addScore( blocks.length );
+          this.__fall( blocks ).then( () => {
+            this.animating = false;
+            this.__checkCrush();
+          } );
         } );
-        this.addScore( blocks.length );
+        this.blocks.splice();
+      },
+      __crushBlock( block ) {
+        console.log( '__crushBlock', block.x, block.y, this.blocks.indexOf( block ) )
+        block.status = 'crushing';
+        return new Promise( resolve => {
+          setTimeout( resolve, 300 );
+        } );
       },
       addScore( num ) {
         this.$emit( 'addScore', num );
       },
+      __fall( blocks ) {
+        this.animating = true;
+        let fallingNums = {};
+        blocks.sort( ( a, b ) => ( a.y - b.y ) * W + ( a.x - b.x ) ).map( block => {
+          if ( !fallingNums[ block.x ] ) fallingNums[ block.x ] = 0;
+          return this.__findSubstituteBlock( block, fallingNums[ block.x ]++ );
+        } ).forEach( newBlock => {
+          newBlock.falling = fallingNums[ newBlock.x ];
+        } );
+        return Promise.all(
+          this.blocks.filter( block => block.falling ).map( block => {
+            return this.__moveBlock( block, block.x, block.y - block.falling ).then( () => {
+              block.falling = 0;
+            } );
+          } )
+        );
+      },
+      __findSubstituteBlock( block, fallingNum ) {
+        const newBlock = this.generateBlock( block.x, H + fallingNum );
+        this.blocks.push( newBlock );
+
+        for ( let y = block.y + 1; y < H; ++y ) {
+          if ( this.cells[ block.x ][ y ].id ) {
+            this.cells[ block.x ][ y ].falling = this.cells[ block.x ][ y ].falling ? this.cells[ block.x ][ y ].falling + 1 : 1;
+          }
+        }
+        return newBlock;
+      },
+      __moveBlock( block, x, y ) {
+        if ( this.cells[ block.x ] && this.cells[ block.x ][ block.y ] ) this.cells[ block.x ][ block.y ] = {};
+        setTimeout( () => {
+          this.cells[ x ][ y ] = block;
+          block.x = x;
+          block.y = y;
+        }, 100 );
+        return new Promise( resolve => {
+          setTimeout( resolve, 300 );
+        } );
+      },
+      __findAnswer() {
+        const __checkExchangeBlocks = ( x, y, x2, y2 ) => {
+          const __exchangeBlocks = ( x, y, x2, y2 ) => {
+            const block = this.cells[ x ][ y ];
+            const block2 = this.cells[ x2 ][ y2 ];
+            block.x = x2;
+            block.y = y2;
+            block2.x = x;
+            block2.y = y;
+            this.cells[ x ][ y ] = block2;
+            this.cells[ x2 ][ y2 ] = block;
+          };
+
+          __exchangeBlocks( x, y, x2, y2 );
+          const result = this.__checkBlockCrush( this.cells[ x ][ y ] ) || this.__checkBlockCrush( this.cells[ x2 ][ y2 ] );
+          __exchangeBlocks( x, y, x2, y2 );
+          console.log( x, y, x2, y2, result )
+          return result;
+        };
+
+        for ( let i = 0; i < this.blocks.length; ++i ) {
+          const { x, y } = this.blocks[ i ];
+          if ( x < W - 1 ) {
+            if ( __checkExchangeBlocks( x, y, x + 1, y ) ) return [ x, y, x + 1, y ];
+          }
+          if ( y < H - 1 ) {
+            if ( __checkExchangeBlocks( x, y, x, y + 1 ) ) return [ x, y, x, y + 1 ];
+          }
+        }
+
+        return [];
+      }
     },
   }
 </script>
@@ -188,8 +283,34 @@
 				border-radius: 10px;
 				transition: all 0.3s;
 
+				&.crushing {
+					animation: block-crushing 0.3s ease-in-out both;
+					@keyframes block-crushing {
+						0% {
+							transform: scale(1);
+							opacity: 1;
+						}
+						100% {
+							transform: scale(1.5);
+							opacity: 0;
+						}
+					}
+				}
+
+				&.answer {
+					animation: block-answer 0.5s ease-in-out infinite alternate;
+					@keyframes block-answer {
+						0% {
+							transform: scale(0.9);
+						}
+						100% {
+							transform: scale(1);
+						}
+					}
+				}
+
 				@for $x from 0 to $X {
-					@for $y from 0 to $Y {
+					@for $y from 0 to $Y * 2 {
 						&[x="#{$x}"][y="#{$y}"] {
 							left: $x * ($W + $gap);
 							top: ($Y - $y - 1) * ($H + $gap);
