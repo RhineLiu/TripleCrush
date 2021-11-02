@@ -1,12 +1,14 @@
 <template>
 	<div class="trigle-crush-game">
-		<div class="blocks">
+		<div class="blocks"
+		     @touchmove="onTouchMove"
+		     @mousemove="onMouseMove">
 			<template v-for="block in blocks">
 				<div class="block" :key="block.id"
 				     :class="[block.status, !animating&&((answer[0]==block.x&&answer[1]==block.y)||(answer[2]==block.x&&answer[3]==block.y))?'answer':'']"
 				     :x="block.x" :y="block.y" :color="block.color"
 				     @touchstart="onTouchStart(block, ...arguments)"
-				     @touchmove="onTouchMove(block, ...arguments)">
+				     @mousedown="onMouseDown(block, ...arguments)">
 				</div>
 			</template>
 		</div>
@@ -61,14 +63,28 @@
       onTouchStart( block, e ) {
         if ( this.animating ) return;
         const touch = e.touches[ 0 ];
-        this._touchStartBlockId = block.id;
+        this._touchStartBlock = block;
         this._touchStartBlockX = touch.clientX;
         this._touchStartBlockY = touch.clientY;
       },
-      onTouchMove( block, e ) {
+      onTouchMove( e ) {
         if ( this.animating ) return;
-        if ( this._touchStartBlockId !== block.id ) return;
+        if ( !this._touchStartBlock ) return;
         const touch = e.touches[ 0 ];
+        this.__checkExchangeBlock( this._touchStartBlock, touch );
+      },
+      onMouseDown( block, e ) {
+        if ( this.animating ) return;
+        this._touchStartBlock = block;
+        this._touchStartBlockX = e.clientX;
+        this._touchStartBlockY = e.clientY;
+      },
+      onMouseMove( e ) {
+        if ( this.animating ) return;
+        if ( !this._touchStartBlock ) return;
+        this.__checkExchangeBlock( this._touchStartBlock, e );
+      },
+      __checkExchangeBlock( block, touch ) {
         const deltaX = touch.clientX - this._touchStartBlockX;
         const deltaY = touch.clientY - this._touchStartBlockY;
         const threshold = 30;
@@ -78,16 +94,16 @@
           } else {
             this.exchangeBlock( block, 'right' );
           }
-          this._touchStartBlockId = null;
+          this._touchStartBlock = null;
         } else if ( Math.abs( deltaX ) < threshold / 2 && Math.abs( deltaY ) > threshold ) {
           if ( deltaY < 0 ) {
             this.exchangeBlock( block, 'up' );
           } else {
             this.exchangeBlock( block, 'down' );
           }
-          this._touchStartBlockId = null;
+          this._touchStartBlock = null;
         } else if ( Math.abs( deltaX ) > threshold / 2 && Math.abs( deltaY ) > threshold / 2 ) {
-          this._touchStartBlockId = null;
+          this._touchStartBlock = null;
         }
       },
       exchangeBlock( block, direction ) {
@@ -280,12 +296,14 @@
 
 	.trigle-crush-game {
 		position: relative;
+		margin: 0 auto;
+		width: ($W + $gap) * $X;
 		height: ($H + $gap) * $Y;
 
 		.blocks {
-			position: absolute;
-			left: 30px;
-			top: 0;
+			/*position: absolute;*/
+			/*left: 30px;*/
+			/*top: 0;*/
 
 			.block {
 				position: absolute;
@@ -295,6 +313,7 @@
 				background: #42b983;
 				border-radius: 10px;
 				transition: all 0.3s;
+				cursor: pointer;
 
 				&.crushing {
 					animation: block-crushing 0.3s ease-in-out both;
